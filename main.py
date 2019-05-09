@@ -7,6 +7,32 @@ from keras.layers import Dense, Dropout, Activation, Flatten
 from keras.layers import Conv2D, MaxPooling2D
 import os
 
+###############################################################################
+# Set up working directories for data, model and logs.
+###############################################################################
+
+model_filename = "cifar10.h5"
+
+# writing the train model and getting input data
+if environ.get('RESULT_DIR') is not None:
+    output_model_folder = os.path.join(os.environ["RESULT_DIR"], "model")
+    output_model_path = os.path.join(output_model_folder, model_filename)
+else:
+    output_model_folder = "model"
+    output_model_path = os.path.join("model", model_filename)
+
+os.makedirs(output_model_folder, exist_ok=True)
+
+#writing metrics
+if environ.get('JOB_STATE_DIR') is not None:
+    tb_directory = os.path.join(os.environ["JOB_STATE_DIR"], "logs", "tb", "test")
+else:
+    tb_directory = os.path.join("logs", "tb", "test")
+
+os.makedirs(tb_directory, exist_ok=True)
+tensorboard = TensorBoard(log_dir=tb_directory)
+
+###############################################################################
 batch_size = 32
 num_classes = 10
 epochs = 100
