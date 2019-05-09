@@ -35,11 +35,11 @@ tensorboard = TensorBoard(log_dir=tb_directory)
 ###############################################################################
 batch_size = 32
 num_classes = 10
-epochs = 100
+epochs = 10
 data_augmentation = True
 num_predictions = 20
-save_dir = os.path.join(os.getcwd(), 'saved_models')
-model_name = 'keras_cifar10_trained_model.h5'
+#save_dir = os.path.join(os.getcwd(), 'saved_models')
+#model_name = 'keras_cifar10_trained_model.h5'
 
 # The data, split between train and test sets:
 (x_train, y_train), (x_test, y_test) = cifar10.load_data()
@@ -138,10 +138,10 @@ else:
                         workers=4)
 
 # Save model and weights
-if not os.path.isdir(save_dir):
-    os.makedirs(save_dir)
-model_path = os.path.join(save_dir, model_name)
-model.save(model_path)
+# if not os.path.isdir(save_dir):
+#     os.makedirs(save_dir)
+# model_path = os.path.join(save_dir, model_name)
+model.save(output_model_path)
 print('Saved trained model at %s ' % model_path)
 
 # Score trained model.
