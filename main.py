@@ -5,7 +5,9 @@ from keras.preprocessing.image import ImageDataGenerator
 from keras.models import Sequential
 from keras.layers import Dense, Dropout, Activation, Flatten
 from keras.layers import Conv2D, MaxPooling2D
+from keras import backend as K
 import os
+from os import environ
 
 ###############################################################################
 # Set up working directories for data, model and logs.
