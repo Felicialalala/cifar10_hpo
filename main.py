@@ -8,6 +8,7 @@ from keras.layers import Conv2D, MaxPooling2D
 from keras import backend as K
 import os
 from os import environ
+from keras.callbacks import TensorBoard
 
 ###############################################################################
 # Set up working directories for data, model and logs.
