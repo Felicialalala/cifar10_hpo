@@ -38,7 +38,7 @@ tensorboard = TensorBoard(log_dir=tb_directory)
 ###############################################################################
 batch_size = 32
 num_classes = 10
-epochs = 10
+epochs = 1
 data_augmentation = False
 num_predictions = 20
 #save_dir = os.path.join(os.getcwd(), 'saved_models')
@@ -145,7 +145,7 @@ else:
 #     os.makedirs(save_dir)
 # model_path = os.path.join(save_dir, model_name)
 model.save(output_model_path)
-print('Saved trained model at %s ' % model_path)
+print('Saved trained model at %s ' % output_model_path)
 
 # Score trained model.
 scores = model.evaluate(x_test, y_test, verbose=1)
