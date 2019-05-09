@@ -39,7 +39,7 @@ tensorboard = TensorBoard(log_dir=tb_directory)
 batch_size = 32
 num_classes = 10
 epochs = 10
-data_augmentation = True
+data_augmentation = False
 num_predictions = 20
 #save_dir = os.path.join(os.getcwd(), 'saved_models')
 #model_name = 'keras_cifar10_trained_model.h5'
