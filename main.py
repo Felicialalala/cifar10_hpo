@@ -9,6 +9,7 @@ from keras import backend as K
 import os
 from os import environ
 from keras.callbacks import TensorBoard
+from emetrics import EMetrics
 
 ###############################################################################
 # Set up working directories for data, model and logs.
@@ -36,6 +37,49 @@ os.makedirs(tb_directory, exist_ok=True)
 tensorboard = TensorBoard(log_dir=tb_directory)
 
 ###############################################################################
+
+###############################################################################
+# Set up HPO.
+###############################################################################
+
+config_file = "config.json"
+
+if os.path.exists(config_file):
+    with open(config_file, 'r') as f:
+        json_obj = json.load(f)
+    learning_rate = json_obj["learning_rate"]
+else:
+    learning_rate = 0.001
+
+def getCurrentSubID():
+    if "SUBID" in os.environ:
+        return os.environ["SUBID"]
+    else:
+        return None
+
+class HPOMetrics(keras.callbacks.Callback):
+    def __init__(self):
+        self.emetrics = EMetrics.open(getCurrentSubID())
+
+    def on_epoch_end(self, epoch, logs={}):
+        train_results = {}
+        test_results = {}
+
+        for key, value in logs.items():
+            if 'val_' in key:
+                test_results.update({key: value})
+            else:
+                train_results.update({key: value})
+
+        print('EPOCH ' + str(epoch))
+        self.emetrics.record("train", epoch, train_results)
+        self.emetrics.record(EMetrics.TEST_GROUP, epoch, test_results)
+
+    def close(self):
+        self.emetrics.close()
+
+###############################################################################
+
 batch_size = 32
 num_classes = 10
 epochs = 1
@@ -92,11 +136,14 @@ x_test /= 255
 
 if not data_augmentation:
     print('Not using data augmentation.')
-    model.fit(x_train, y_train,
-              batch_size=batch_size,
-              epochs=epochs,
-              validation_data=(x_test, y_test),
-              shuffle=True)
+    hpo = HPOMetrics()
+    history = model.fit(x_train, y_train,
+                        batch_size=batch_size,
+                        epochs=epochs,
+                        validation_data=(x_test, y_test),
+                        shuffle=True,
+                        callbacks=[tensorboard, hpo])
+    hpo.close()
 else:
     print('Using real-time data augmentation.')
     # This will do preprocessing and realtime data augmentation:
@@ -139,7 +186,7 @@ else:
                         epochs=epochs,
                         validation_data=(x_test, y_test),
                         workers=4)
-
+print("Training history:" + str(history.history))
 # Save model and weights
 # if not os.path.isdir(save_dir):
 #     os.makedirs(save_dir)
