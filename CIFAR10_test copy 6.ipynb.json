@@ -1,0 +1,908 @@
+{
+ "cells": [
+  {
+   "cell_type": "code",
+   "execution_count": 1,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "import ibm_boto3\n",
+    "from ibm_botocore.client import Config\n",
+    "import os\n",
+    "import json\n",
+    "import warnings\n",
+    "import time"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 2,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "cos_credentials = {\n",
+    "  \"apikey\": \"4NrO3nhEqt84YF1fbKMw9PJ5adHjJfu8NLq13Pz4elEt\",\n",
+    "  \"cos_hmac_keys\": {\n",
+    "    \"access_key_id\": \"7c95d50ce07b4da08b5fa86c33944220\",\n",
+    "    \"secret_access_key\": \"4976ba8ca86ba5058030a9e48634dec8525511dce0e68b4c\"\n",
+    "  },\n",
+    "  \"endpoints\": \"https://control.cloud-object-storage.cloud.ibm.com/v2/endpoints\",\n",
+    "  \"iam_apikey_description\": \"Auto generated apikey during resource-key operation for Instance - crn:v1:bluemix:public:cloud-object-storage:global:a/6d90d7705c844d038ba150645301f546:e481bf42-3f1e-491c-9f2b-593f65eecd91::\",\n",
+    "  \"iam_apikey_name\": \"auto-generated-apikey-7c95d50c-e07b-4da0-8b5f-a86c33944220\",\n",
+    "  \"iam_role_crn\": \"crn:v1:bluemix:public:iam::::serviceRole:Writer\",\n",
+    "  \"iam_serviceid_crn\": \"crn:v1:bluemix:public:iam-identity::a/6d90d7705c844d038ba150645301f546::serviceid:ServiceId-7c1f325f-02b5-4347-9daf-c92a64fe7473\",\n",
+    "  \"resource_instance_id\": \"crn:v1:bluemix:public:cloud-object-storage:global:a/6d90d7705c844d038ba150645301f546:e481bf42-3f1e-491c-9f2b-593f65eecd91::\"\n",
+    "}\n",
+    "\n",
+    "api_key = cos_credentials['apikey']\n",
+    "service_instance_id = cos_credentials['resource_instance_id']\n",
+    "auth_endpoint = 'https://iam.bluemix.net/oidc/token'\n",
+    "service_endpoint = 'https://s3-api.us-geo.objectstorage.softlayer.net'"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 3,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "cos = ibm_boto3.resource('s3',\n",
+    "                         ibm_api_key_id=api_key,\n",
+    "                         ibm_service_instance_id=service_instance_id,\n",
+    "                         ibm_auth_endpoint=auth_endpoint,\n",
+    "                         config=Config(signature_version='oauth'),\n",
+    "                         endpoint_url=service_endpoint)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 4,
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "Creating bucket \"cifar10-data-test6\"...\n",
+      "Creating bucket \"cifar10-results-test6\"...\n"
+     ]
+    }
+   ],
+   "source": [
+    "buckets = ['cifar10-data-test6', 'cifar10-results-test6']\n",
+    "for bucket in buckets:\n",
+    "    if not cos.Bucket(bucket) in cos.buckets.all():\n",
+    "        print('Creating bucket \"{}\"...'.format(bucket))\n",
+    "        try:\n",
+    "            cos.create_bucket(Bucket=bucket)\n",
+    "        except ibm_boto3.exceptions.ibm_botocore.client.ClientError as e:\n",
+    "            print('Error: {}.'.format(e.response['Error']['Message']))"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 5,
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "[s3.Bucket(name='cifar10-data-test1'), s3.Bucket(name='cifar10-data-test2'), s3.Bucket(name='cifar10-data-test4'), s3.Bucket(name='cifar10-data-test6'), s3.Bucket(name='cifar10-results-test1'), s3.Bucket(name='cifar10-results-test2'), s3.Bucket(name='cifar10-results-test4'), s3.Bucket(name='cifar10-results-test6'), s3.Bucket(name='hpotest-donotdelete-pr-bwyezarw2xgf5l'), s3.Bucket(name='mnist-keras-data-yyt'), s3.Bucket(name='mnist-keras-data-yyt0'), s3.Bucket(name='mnist-keras-results-yyt'), s3.Bucket(name='mnist-keras-results-yyt1'), s3.Bucket(name='mnist-keras-yyt'), s3.Bucket(name='mnist-keras-yyt0'), s3.Bucket(name='mnist-keras-yyt1'), s3.Bucket(name='pytorchproj1-donotdelete-pr-urmq8x7oxqvjrm'), s3.Bucket(name='training-mnist-data-1672c3e3-a9d5-4b41-9bd0-bf0a33f4b664'), s3.Bucket(name='training-mnist-results-1672c3e3-a9d5-4b41-9bd0-bf0a33f4b664'), s3.Bucket(name='trainingdatabucket1'), s3.Bucket(name='trainingoutput1')]\n"
+     ]
+    }
+   ],
+   "source": [
+    "print(list(cos.buckets.all()))"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 6,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "link = \"https://www.cs.toronto.edu/~kriz/cifar-10-python.tar.gz\""
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 7,
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "Collecting wget\n",
+      "  Downloading https://files.pythonhosted.org/packages/47/6a/62e288da7bcda82b935ff0c6cfe542970f04e29c756b0e147251b2fb251f/wget-3.2.zip\n",
+      "Building wheels for collected packages: wget\n",
+      "  Running setup.py bdist_wheel for wget ... \u001b[?25ldone\n",
+      "\u001b[?25h  Stored in directory: /home/dsxuser/.cache/pip/wheels/40/15/30/7d8f7cea2902b4db79e3fea550d7d7b85ecb27ef992b618f3f\n",
+      "Successfully built wget\n",
+      "Installing collected packages: wget\n",
+      "Successfully installed wget-3.2\n"
+     ]
+    }
+   ],
+   "source": [
+    "!pip install wget"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 8,
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "cifar-10-python.tar.gz\r\n"
+     ]
+    }
+   ],
+   "source": [
+    "import wget, os\n",
+    "\n",
+    "data_dir = 'CIFAR10_DATA'\n",
+    "if not os.path.isdir(data_dir):\n",
+    "    os.mkdir(data_dir)\n",
+    "\n",
+    "if not os.path.isfile(os.path.join(data_dir, os.path.join(link.split('/')[-1]))):\n",
+    "    wget.download(link, out=data_dir)  \n",
+    "        \n",
+    "!ls CIFAR10_DATA"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 9,
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "cifar-10-python.tar.gz is uploaded.\n"
+     ]
+    }
+   ],
+   "source": [
+    "bucket_name = buckets[0]\n",
+    "bucket_obj = cos.Bucket(bucket_name)\n",
+    "\n",
+    "for filename in os.listdir(data_dir):\n",
+    "    with open(os.path.join(data_dir, filename), 'rb') as data: \n",
+    "        bucket_obj.upload_file(os.path.join(data_dir, filename), filename)\n",
+    "        print('{} is uploaded.'.format(filename))"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 10,
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "Object key: cifar-10-python.tar.gz\n",
+      "Object size (kb): 166502.0224609375\n"
+     ]
+    }
+   ],
+   "source": [
+    "for obj in bucket_obj.objects.all():\n",
+    "    print('Object key: {}'.format(obj.key))\n",
+    "    print('Object size (kb): {}'.format(obj.size/1024))"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 11,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "import urllib3, requests, json, base64, time, os\n",
+    "warnings.filterwarnings('ignore')"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 12,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "wml_credentials = {\n",
+    "  \"url\": \"https://ibm-watson-ml.mybluemix.net\",\n",
+    "  \"access_key\": \"YrY6e1xi6rJemA1yEB2iaTojb0OKZTpi79o+4MSFrSG3BM2IFZaDZwvBcoQXGXStpxSFKe9cZoFYLlzgPf++qpWZYcc+6fawL9S0V+2V79Adc+zik+ZHJYrsBRl9GAcs\",\n",
+    "  \"username\": \"742b4c40-6b2b-4594-b51d-8fdf95002d86\",\n",
+    "  \"password\": \"b25d1c02-43af-4c59-bc09-bb53b726d720\",\n",
+    "  \"instance_id\": \"7812fa57-7167-40e9-8854-c2e03cb261a9\"\n",
+    "}"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 13,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "!rm -rf $PIP_BUILD/watson-machine-learning-client"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 14,
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "Requirement already up-to-date: watson-machine-learning-client in /opt/conda/envs/DSX-Python35/lib/python3.5/site-packages\n",
+      "Requirement not upgraded as not directly required: lomond in /opt/conda/envs/DSX-Python35/lib/python3.5/site-packages (from watson-machine-learning-client)\n",
+      "Requirement not upgraded as not directly required: tqdm in /opt/conda/envs/DSX-Python35/lib/python3.5/site-packages (from watson-machine-learning-client)\n",
+      "Requirement not upgraded as not directly required: requests in /opt/conda/envs/DSX-Python35/lib/python3.5/site-packages (from watson-machine-learning-client)\n",
+      "Requirement not upgraded as not directly required: urllib3 in /opt/conda/envs/DSX-Python35/lib/python3.5/site-packages (from watson-machine-learning-client)\n",
+      "Requirement not upgraded as not directly required: tabulate in /opt/conda/envs/DSX-Python35/lib/python3.5/site-packages (from watson-machine-learning-client)\n",
+      "Requirement not upgraded as not directly required: ibm-cos-sdk in /opt/conda/envs/DSX-Python35/lib/python3.5/site-packages (from watson-machine-learning-client)\n",
+      "Requirement not upgraded as not directly required: certifi in /opt/conda/envs/DSX-Python35/lib/python3.5/site-packages (from watson-machine-learning-client)\n",
+      "Requirement not upgraded as not directly required: pandas in /opt/conda/envs/DSX-Python35/lib/python3.5/site-packages (from watson-machine-learning-client)\n",
+      "Requirement not upgraded as not directly required: six>=1.10.0 in /opt/conda/envs/DSX-Python35/lib/python3.5/site-packages (from lomond->watson-machine-learning-client)\n",
+      "Requirement not upgraded as not directly required: chardet<3.1.0,>=3.0.2 in /opt/conda/envs/DSX-Python35/lib/python3.5/site-packages (from requests->watson-machine-learning-client)\n",
+      "Requirement not upgraded as not directly required: idna<2.7,>=2.5 in /opt/conda/envs/DSX-Python35/lib/python3.5/site-packages (from requests->watson-machine-learning-client)\n",
+      "Requirement not upgraded as not directly required: ibm-cos-sdk-core==2.*,>=2.0.0 in /opt/conda/envs/DSX-Python35/lib/python3.5/site-packages (from ibm-cos-sdk->watson-machine-learning-client)\n",
+      "Requirement not upgraded as not directly required: ibm-cos-sdk-s3transfer==2.*,>=2.0.0 in /opt/conda/envs/DSX-Python35/lib/python3.5/site-packages (from ibm-cos-sdk->watson-machine-learning-client)\n",
+      "Requirement not upgraded as not directly required: python-dateutil>=2 in /opt/conda/envs/DSX-Python35/lib/python3.5/site-packages (from pandas->watson-machine-learning-client)\n",
+      "Requirement not upgraded as not directly required: pytz>=2011k in /opt/conda/envs/DSX-Python35/lib/python3.5/site-packages (from pandas->watson-machine-learning-client)\n",
+      "Requirement not upgraded as not directly required: numpy>=1.9.0 in /opt/conda/envs/DSX-Python35/lib/python3.5/site-packages (from pandas->watson-machine-learning-client)\n",
+      "Requirement not upgraded as not directly required: jmespath<1.0.0,>=0.7.1 in /opt/conda/envs/DSX-Python35/lib/python3.5/site-packages (from ibm-cos-sdk-core==2.*,>=2.0.0->ibm-cos-sdk->watson-machine-learning-client)\n",
+      "Requirement not upgraded as not directly required: docutils>=0.10 in /opt/conda/envs/DSX-Python35/lib/python3.5/site-packages (from ibm-cos-sdk-core==2.*,>=2.0.0->ibm-cos-sdk->watson-machine-learning-client)\n"
+     ]
+    }
+   ],
+   "source": [
+    "!pip install --upgrade watson-machine-learning-client"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 15,
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      "/opt/conda/envs/DSX-Python35/lib/python3.5/site-packages/sklearn/cross_validation.py:41: DeprecationWarning: This module was deprecated in version 0.18 in favor of the model_selection module into which all the refactored classes and functions are moved. Also note that the interface of the new CV iterators are different from that of this module. This module will be removed in 0.20.\n",
+      "  \"This module will be removed in 0.20.\", DeprecationWarning)\n",
+      "2019-05-11 22:18:08,676 - watson_machine_learning_client.metanames - WARNING - 'AUTHOR_EMAIL' meta prop is deprecated. It will be ignored.\n",
+      "2019-05-11 22:18:12,851 - watson_machine_learning_client.metanames - WARNING - 'AUTHOR_EMAIL' meta prop is deprecated. It will be ignored.\n",
+      "2019-05-11 22:18:14,085 - watson_machine_learning_client.wml_client_error - WARNING - Failure during experiment run. (POST https://ibm-watson-ml.mybluemix.net/v3/experiments/bad8619e-9f06-4d38-868b-e8ff8d5a46d1/runs)\n",
+      "Status code: 403, body: {\n",
+      "  \"trace\": \"3921242899\",\n",
+      "  \"errors\": [{\n",
+      "    \"code\": \"instance_quota_exceeded\",\n",
+      "    \"message\": \"User quota exceeded (50 capacity unit-hours).\",\n",
+      "    \"more_info\": \"http://watson-ml-api.mybluemix.net/\"\n",
+      "  }]\n",
+      "}\n"
+     ]
+    }
+   ],
+   "source": [
+    "from watson_machine_learning_client import WatsonMachineLearningAPIClient"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 16,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "client = WatsonMachineLearningAPIClient(wml_credentials)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 17,
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "1.0.365\n"
+     ]
+    }
+   ],
+   "source": [
+    "print(client.version)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 18,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "model_definition_1_metadata = {\n",
+    "            client.repository.DefinitionMetaNames.NAME: \"CIFAR10_CNN\",\n",
+    "            client.repository.DefinitionMetaNames.AUTHOR_EMAIL: \"yiting@nyu.edu\",\n",
+    "            client.repository.DefinitionMetaNames.FRAMEWORK_NAME: \"tensorflow\",\n",
+    "            client.repository.DefinitionMetaNames.FRAMEWORK_VERSION: \"1.5\",\n",
+    "            client.repository.DefinitionMetaNames.RUNTIME_NAME: \"python\",\n",
+    "            client.repository.DefinitionMetaNames.RUNTIME_VERSION: \"3.5\",\n",
+    "            client.repository.DefinitionMetaNames.EXECUTION_COMMAND: \"python3 main.py\"\n",
+    "            }"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 19,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "!rm -rf cifar10.zip"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 20,
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "--2019-05-11 22:18:07--  https://github.com/Felicialalala/cifar10_hpo/raw/master/resnet.zip\n",
+      "Resolving github.com (github.com)... 192.30.253.112\n",
+      "Connecting to github.com (github.com)|192.30.253.112|:443... connected.\n",
+      "HTTP request sent, awaiting response... 302 Found\n",
+      "Location: https://raw.githubusercontent.com/Felicialalala/cifar10_hpo/master/resnet.zip [following]\n",
+      "--2019-05-11 22:18:08--  https://raw.githubusercontent.com/Felicialalala/cifar10_hpo/master/resnet.zip\n",
+      "Resolving raw.githubusercontent.com (raw.githubusercontent.com)... 151.101.48.133\n",
+      "Connecting to raw.githubusercontent.com (raw.githubusercontent.com)|151.101.48.133|:443... connected.\n",
+      "HTTP request sent, awaiting response... 200 OK\n",
+      "Length: 6443 (6.3K) [application/zip]\n",
+      "Saving to: ‘resnet.zip’\n",
+      "\n",
+      "100%[======================================>] 6,443       --.-K/s   in 0s      \n",
+      "\n",
+      "2019-05-11 22:18:08 (89.9 MB/s) - ‘resnet.zip’ saved [6443/6443]\n",
+      "\n",
+      "resnet.zip\n"
+     ]
+    }
+   ],
+   "source": [
+    "filename_mnist = 'cifar10.zip'\n",
+    "\n",
+    "if os.path.isfile(filename_mnist):\n",
+    "    !ls 'cifar10.zip'\n",
+    "else:\n",
+    "    !wget https://github.com/Felicialalala/cifar10_hpo/raw/master/cifar10.zip\n",
+    "    !ls 'cifar10.zip'"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 21,
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "https://us-south.ml.cloud.ibm.com/v3/ml_assets/training_definitions/db105ce9-5a69-4e95-87cd-7e777aa3fe2e\n"
+     ]
+    }
+   ],
+   "source": [
+    "definition_1_details = client.repository.store_definition(filename_mnist, model_definition_1_metadata)\n",
+    "\n",
+    "definition_1_url = client.repository.get_definition_url(definition_1_details)\n",
+    "definition_1_uid = client.repository.get_definition_uid(definition_1_details)\n",
+    "print(definition_1_url)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 22,
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "------------------------------------  -----------  ------------------------  ----------\n",
+      "GUID                                  NAME         CREATED                   FRAMEWORK\n",
+      "db105ce9-5a69-4e95-87cd-7e777aa3fe2e  CIFAR10_CNN  2019-05-11T22:18:08.784Z  tensorflow\n",
+      "0081d444-abef-455e-987a-47aa8d8e66cb  CIFAR10_CNN  2019-05-09T14:07:42.451Z  tensorflow\n",
+      "8e3d9501-85a5-4e86-bb5e-d1c5bf2d8fc8  CIFAR10_CNN  2019-05-09T13:15:53.651Z  tensorflow\n",
+      "569f1c9c-cbbb-45a3-aabf-f4f21c3a00af  CIFAR10_CNN  2019-05-09T09:48:25.510Z  tensorflow\n",
+      "1b0b252b-4e64-495b-b0b8-7767de6ce0ae  CIFAR10      2019-05-09T03:14:58.601Z  tensorflow\n",
+      "ea1b53f6-b59f-4348-a1be-5b8d8c428cb0  CIFAR10      2019-05-09T03:06:49.705Z  tensorflow\n",
+      "6a7366fb-7d73-43d1-9f15-51b3b0b96eee  CIFAR10      2019-05-09T02:56:59.505Z  tensorflow\n",
+      "d91edd11-8b35-427d-b653-543020112bb7  CIFAR10      2019-05-09T02:53:31.774Z  tensorflow\n",
+      "21159f69-5dcc-4220-a879-75eb85bbd501  CIFAR10      2019-05-09T02:49:40.142Z  tensorflow\n",
+      "8761a031-0612-4069-98b6-1eb30b794d29  CIFAR10      2019-05-09T02:43:49.669Z  tensorflow\n",
+      "4f63da1b-555d-4790-987a-09d7619f88c4  CIFAR10      2019-05-09T02:27:22.083Z  tensorflow\n",
+      "28723d25-9c46-4304-bc26-63492b2a91da  CIFAR10      2019-05-09T02:18:20.366Z  tensorflow\n",
+      "e3a6bfb1-06b1-46ab-bbfe-2e7dded8d76d  CIFAR10      2019-05-09T02:13:54.636Z  tensorflow\n",
+      "f10dbfa7-f617-48e8-8c83-fc857727e1a0  CIFAR10      2019-05-09T02:01:54.310Z  tensorflow\n",
+      "1538a9b0-c5bd-4a29-9b42-67330359a724  CIFAR10      2019-05-09T01:57:47.117Z  tensorflow\n",
+      "3d66ab33-d3d0-4e71-9d87-172d151d4812  CIFAR10      2019-05-09T01:52:39.021Z  tensorflow\n",
+      "861ca30c-6c23-4949-afcd-41843dc88105  CIFAR10      2019-05-09T01:38:19.892Z  tensorflow\n",
+      "461309f6-3bd5-40a0-abe4-5c7f65bbb444  CIFAR10      2019-05-09T01:34:25.631Z  tensorflow\n",
+      "488d42e3-0e67-4a1a-a41c-95b5c0c7bf3b  CIFAR10      2019-05-09T01:26:44.850Z  tensorflow\n",
+      "76e95bd5-d409-40e4-aba1-f7c9913ac155  CIFAR10      2019-05-09T01:18:52.443Z  tensorflow\n",
+      "29647f6b-f68e-41e0-a9c0-2c78d88aada5  CIFAR10-MLP  2019-05-09T01:09:01.775Z  tensorflow\n",
+      "9acf1f3f-7e0d-413d-a1d2-6b80f2e93f5b  CIFAR10-MLP  2019-05-09T01:04:35.164Z  tensorflow\n",
+      "f480b682-0fe0-43c7-aa38-45f1fb0d495e  CIFAR10-MLP  2019-05-09T00:55:29.730Z  tensorflow\n",
+      "84d200dd-75b5-46af-88ce-53ceb0de3933  CIFAR10-MLP  2019-05-09T00:54:39.746Z  tensorflow\n",
+      "ca65bb35-f0e4-4192-ae56-caa6a42f06db  CIFAR10-MLP  2019-05-09T00:53:34.418Z  tensorflow\n",
+      "79d81074-f93c-4d75-9c69-160d35ac3935  CNN          2019-05-08T23:59:45.374Z  tensorflow\n",
+      "fcea9e2d-f12a-4c74-8917-01670c3e569b  MLP          2019-05-08T23:59:43.739Z  tensorflow\n",
+      "36a803b6-a6d1-428a-a445-7e03da50b5d7  CIFAR10      2019-05-08T23:51:42.945Z  tensorflow\n",
+      "291f36a0-2dc8-4b5c-892e-2a1aa311aeb1  CIFAR10      2019-05-08T23:49:52.143Z  tensorflow\n",
+      "9a85fe77-971a-4386-b3b7-2c45058b4e03  CNN          2019-05-08T22:58:34.179Z  tensorflow\n",
+      "e49780fa-e1a4-4fe2-85bc-be86a901f159  MLP          2019-05-08T22:58:32.682Z  tensorflow\n",
+      "1d9b9602-3ce5-47d0-a7c3-018ba72e0728  CIFAR10      2019-05-08T22:42:53.552Z  tensorflow\n",
+      "b2657117-259d-47d3-8c54-d08a19fdc124  MNIST-CNN    2019-05-08T22:42:35.369Z  tensorflow\n",
+      "0b13812b-2999-4200-a5e6-2c58407be47e  MNIST-MLP    2019-05-08T22:42:32.763Z  tensorflow\n",
+      "20eff24e-ed46-4e33-b24c-ab2c9b05b775  CIFAR10_HPO  2019-05-08T22:24:18.656Z  tensorflow\n",
+      "bafe743b-1e9a-4965-bbb4-ae7f3b222430  CIFAR10_HPO  2019-05-08T22:13:23.757Z  tensorflow\n",
+      "b19a3669-79ed-41a9-911f-3c23d527b112  CIFAR10_HPO  2019-05-08T22:08:01.382Z  tensorflow\n",
+      "adae2bac-3308-4b1d-a46d-0bf1831c9c12  CIFAR10_HPO  2019-05-08T22:04:19.072Z  tensorflow\n",
+      "803f194f-7c16-4d7c-ba08-5a05b10099bb  CIFAR10_HPO  2019-05-08T21:37:02.473Z  tensorflow\n",
+      "f3159627-9672-41d3-ae3f-25ccc1c9fa9c  CIFAR10_HPO  2019-05-08T21:30:32.952Z  tensorflow\n",
+      "79cc532f-1104-478a-b2a7-c129b05089f7  CIFAR10_HPO  2019-05-08T21:20:47.165Z  tensorflow\n",
+      "ace8eefd-3c27-45e9-8813-118489427353  CIFAR10_HPO  2019-05-08T21:16:19.662Z  tensorflow\n",
+      "942f442a-dcd0-400b-91bb-79cd2ed1c92e  CIFAR-CNN    2019-05-08T19:27:32.473Z  tensorflow\n",
+      "3434c352-ca6e-441c-8e05-bd63c687a2ab  CIFAR10-MLP  2019-05-08T19:27:29.963Z  tensorflow\n",
+      "4734f6fb-2ca2-4ff7-b600-bd63d60836ae  CIFAR-CNN    2019-05-08T13:19:31.937Z  tensorflow\n",
+      "71b2d4fe-3028-4e23-afc0-cbbbe0fdbec9  CIFAR10-MLP  2019-05-08T13:19:30.328Z  tensorflow\n",
+      "461f3d1f-49b7-4dec-9aab-b02beecd3236  MNIST-CNN    2019-05-07T15:01:24.746Z  tensorflow\n",
+      "2fa18e67-6cef-4d10-a8b0-6c72e87a4e39  MNIST-MLP    2019-05-07T15:01:23.271Z  tensorflow\n",
+      "6085487f-4ebe-4c0b-975f-688fb736e3d7  CIFAR10_HPO  2019-05-06T03:19:36.246Z  tensorflow\n",
+      "36272e71-4539-4586-bf7f-8bc9489984a3  CIFAR10_HPO  2019-05-06T03:06:04.624Z  tensorflow\n",
+      "------------------------------------  -----------  ------------------------  ----------\n",
+      "Note: Only first 50 records were displayed. To display more use 'limit' parameter.\n"
+     ]
+    }
+   ],
+   "source": [
+    "client.repository.list_definitions()"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 23,
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "--------------------------  ----  --------\n",
+      "META_PROP NAME              TYPE  REQUIRED\n",
+      "NAME                        str   Y\n",
+      "DESCRIPTION                 str   N\n",
+      "TAGS                        list  N\n",
+      "AUTHOR_NAME                 str   N\n",
+      "EVALUATION_METHOD           str   N\n",
+      "EVALUATION_METRICS          list  N\n",
+      "TRAINING_REFERENCES         list  Y\n",
+      "TRAINING_DATA_REFERENCE     dict  Y\n",
+      "TRAINING_RESULTS_REFERENCE  dict  Y\n",
+      "--------------------------  ----  --------\n"
+     ]
+    }
+   ],
+   "source": [
+    "client.repository.ExperimentMetaNames.show()"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 24,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "TRAINING_DATA_REFERENCE = {\n",
+    "                            \"connection\": {\n",
+    "                                \"endpoint_url\": service_endpoint,\n",
+    "                                \"aws_access_key_id\": cos_credentials['cos_hmac_keys']['access_key_id'],\n",
+    "                                \"aws_secret_access_key\": cos_credentials['cos_hmac_keys']['secret_access_key']\n",
+    "                            },\n",
+    "                            \"source\": {\n",
+    "                                \"bucket\": buckets[0],\n",
+    "                            },\n",
+    "                            \"type\": \"s3\"\n",
+    "}"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 25,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "TRAINING_RESULTS_REFERENCE = {\n",
+    "                                \"connection\": {\n",
+    "                                    \"endpoint_url\": service_endpoint,\n",
+    "                                    \"aws_access_key_id\": cos_credentials['cos_hmac_keys']['access_key_id'],\n",
+    "                                    \"aws_secret_access_key\": cos_credentials['cos_hmac_keys']['secret_access_key']\n",
+    "                                },\n",
+    "                                \"target\": {\n",
+    "                                    \"bucket\": buckets[1],\n",
+    "                                },\n",
+    "                                \"type\": \"s3\"\n",
+    "}"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 26,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "HPO = {\n",
+    "        \"method\": {\n",
+    "            \"name\": \"rbfopt\",\n",
+    "            \"parameters\": [\n",
+    "                client.experiments.HPOMethodParam(\"objective\", \"val_acc\"),\n",
+    "                client.experiments.HPOMethodParam(\"maximize_or_minimize\", \"maximize\"),\n",
+    "                client.experiments.HPOMethodParam(\"num_optimizer_steps\", 3)\n",
+    "            ]\n",
+    "        },\n",
+    "        \"hyper_parameters\": [\n",
+    "            client.experiments.HPOParameter('learning_rate', min=0.0001, max=0.001, step=0.0003)\n",
+    "        ]\n",
+    "     }         "
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 27,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "experiment_metadata = {\n",
+    "            client.repository.ExperimentMetaNames.NAME: \"CIFAR10 experiment 0509-noHPO\",\n",
+    "            client.repository.ExperimentMetaNames.DESCRIPTION: \"Best model for CIFAR10.\",\n",
+    "            client.repository.ExperimentMetaNames.AUTHOR_EMAIL: \"yiting@nyu.edu\",\n",
+    "            client.repository.ExperimentMetaNames.EVALUATION_METHOD: \"multiclass\",\n",
+    "            client.repository.ExperimentMetaNames.EVALUATION_METRICS: [\"val_acc\"],\n",
+    "            #client.repository.ExperimentMetaNames.EVALUATION_METRICS: [{\"name\": \"val_acc\", \"maximize\": True}],\n",
+    "            client.repository.ExperimentMetaNames.TRAINING_DATA_REFERENCE: TRAINING_DATA_REFERENCE,\n",
+    "            client.repository.ExperimentMetaNames.TRAINING_RESULTS_REFERENCE: TRAINING_RESULTS_REFERENCE,\n",
+    "            client.repository.ExperimentMetaNames.TRAINING_REFERENCES: [\n",
+    "                        {\n",
+    "                            \"name\": \"CIAFR10\",\n",
+    "                            \"training_definition_url\": definition_1_url,\n",
+    "                            \"compute_configuration\": {\"name\": \"k80x2\"},\n",
+    "                            \"hyper_parameters_optimization\": HPO\n",
+    "                        }],\n",
+    "            }"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 28,
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "bad8619e-9f06-4d38-868b-e8ff8d5a46d1\n"
+     ]
+    }
+   ],
+   "source": [
+    "experiment_details = client.repository.store_experiment(meta_props=experiment_metadata)\n",
+    "\n",
+    "experiment_uid = client.repository.get_experiment_uid(experiment_details)\n",
+    "print(experiment_uid)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 29,
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "------------------------------------  -----------------------------  ------------------------\n",
+      "GUID                                  NAME                           CREATED\n",
+      "bad8619e-9f06-4d38-868b-e8ff8d5a46d1  CIFAR10 experiment 0509-noHPO  2019-05-11T22:18:13.046Z\n",
+      "a6d639d9-cf32-454b-9544-0bca2d08e205  CIFAR10 experiment 0509-noHPO  2019-05-09T14:07:47.314Z\n",
+      "d9e29805-70a2-4e92-9516-bf483ad0d99e  CIFAR10 experiment 0509-2      2019-05-09T13:15:57.743Z\n",
+      "b1eea085-059b-480d-abc4-5e6079864cf1  CIFAR10 experiment 0509        2019-05-09T09:48:29.425Z\n",
+      "7045fe60-c3ee-4aa5-930c-fd7b93c048dd  CIFAR10 experiment             2019-05-09T03:15:03.189Z\n",
+      "a275b411-356f-4727-8ee7-906cbf7b55f8  CIFAR10 experiment             2019-05-09T03:06:53.727Z\n",
+      "426107ca-6171-491c-ba01-f075c6d766b8  CIFAR10 experiment             2019-05-09T02:57:03.937Z\n",
+      "04619a89-2c0b-47f9-af10-02d90e493491  CIFAR10 experiment             2019-05-09T02:53:35.739Z\n",
+      "a6421836-c68a-4fa4-8dc6-63525ca45944  CIFAR10 experiment             2019-05-09T02:49:44.081Z\n",
+      "d8358e72-c4d2-4c37-891e-7af1028b950b  CIFAR10 experiment             2019-05-09T02:43:53.445Z\n",
+      "bf1e541e-a1f6-4b1c-bd79-c578cf333577  CIFAR10 experiment             2019-05-09T02:27:25.953Z\n",
+      "a971bedb-c949-411f-a795-c701e6e7eadf  CIFAR10 experiment             2019-05-09T02:18:24.142Z\n",
+      "b3ce97e5-79b6-4a62-86d4-56da920a5119  CIFAR10 experiment             2019-05-09T02:13:58.270Z\n",
+      "e908513f-cab5-418a-9f3e-2b859bd06d9d  CIFAR10 experiment             2019-05-09T02:01:58.036Z\n",
+      "40141649-47b9-4639-b3d8-24383e701c21  CIFAR10 experiment             2019-05-09T01:57:50.717Z\n",
+      "b0bbe680-3a9f-4e42-b245-82e118d40681  CIFAR10 experiment             2019-05-09T01:52:42.628Z\n",
+      "bb277a87-82be-43b0-907e-e24f97dafc89  CIFAR10 experiment             2019-05-09T01:38:23.639Z\n",
+      "f22e2fb9-9b0f-460c-a7e5-02939b97ce6a  CIFAR10 experiment             2019-05-09T01:34:29.715Z\n",
+      "2c3ce39d-9f8e-4dbb-97e4-9012f782067c  CIFAR10 experiment             2019-05-09T01:26:48.553Z\n",
+      "29273324-1bac-4807-881c-2e3c4200beb1  CIFAR10 experiment             2019-05-09T01:18:55.987Z\n",
+      "b65d377b-ffbf-456a-b6e2-0ab9cfe9b546  CIFAR10 experiment             2019-05-09T01:09:21.964Z\n",
+      "6b976e16-c29a-408b-a7d3-255d2ba0da7c  CIFAR10 experiment             2019-05-09T01:04:46.869Z\n",
+      "51491f21-7fe8-4e90-8c65-3099f44824de  CIFAR10 experiment             2019-05-09T00:55:41.988Z\n",
+      "d17c8baf-d536-45a1-96d0-4b05d38ca06c  CIFAR10 experiment             2019-05-08T23:59:48.888Z\n",
+      "f0415e96-06c3-4b3c-a22d-f6e7bb90173b  CIFAR10 experiment             2019-05-08T23:51:50.464Z\n",
+      "db083fbb-cdfd-443c-bbed-7a0b06866b74  CIFAR10 experiment             2019-05-08T23:00:18.839Z\n",
+      "516b046e-411e-4b89-89e5-4127a04582d1  CIFAR10 experiment             2019-05-08T22:43:05.004Z\n",
+      "0a54a586-dacb-4237-829b-3f887d0ffc62  CIFAR10 experiment             2019-05-08T22:24:24.978Z\n",
+      "344485c2-52e6-48ce-8ca8-a3f38ed7e5b9  CIFAR10 experiment             2019-05-08T22:13:31.761Z\n",
+      "a9a16631-5c16-414f-a5c2-60becf6fa515  CIFAR10 experiment             2019-05-08T22:08:07.507Z\n",
+      "1f1ed950-53b8-48f7-8717-12578beaf09a  CIFAR10 experiment             2019-05-08T22:04:28.863Z\n",
+      "7accb99a-a468-409d-9398-7b33efbfdb4e  CIFAR10 experiment             2019-05-08T21:37:12.263Z\n",
+      "ded6375c-e861-47d6-912e-d26efb73ad54  CIFAR10 experiment             2019-05-08T21:30:48.881Z\n",
+      "9813436e-9455-4f8e-88b1-3770d24ec7a8  CIFAR10 experiment             2019-05-08T21:20:56.392Z\n",
+      "1bd548af-0308-4282-a5a2-cafebe5b1d66  CIFAR10 experiment             2019-05-08T21:16:37.454Z\n",
+      "64ec5b65-2891-4de1-88db-61306d1fe0dd  CIFAR10 experiment             2019-05-08T19:35:30.254Z\n",
+      "e141965b-e2af-4958-b9ae-6d69f8344418  CIFAR10 experiment             2019-05-08T19:27:46.613Z\n",
+      "730b9111-6ffe-4073-9b14-a87f5bb0d312  CIFAR10 experiment             2019-05-08T13:19:48.781Z\n",
+      "8d968e50-216d-4b6c-b10f-a6cee4949b2b  MNIST experiment               2019-05-07T15:01:38.868Z\n",
+      "e2a19754-1a97-476d-a421-f40c6ebc78cb  CIFAR10 experiment             2019-05-06T03:19:54.176Z\n",
+      "e0760b1f-4912-4de0-95c2-d8225a0d691a  CIFAR10 experiment             2019-05-06T03:10:03.202Z\n",
+      "af43e71e-99ac-4dad-9b3b-ff3d78a4b20d  MNIST experiment               2019-04-29T14:21:18.285Z\n",
+      "c7f7c679-518c-46f8-ae5b-4d5eb860870f  MNIST experiment               2019-04-28T18:36:57.190Z\n",
+      "675cf76e-e357-4f05-811e-0028389ecb8c  MNIST experiment               2019-04-28T18:22:03.935Z\n",
+      "e417fd57-7d62-4c96-a7e9-2f1e26dc1ed9  MNIST experiment               2019-04-27T16:54:13.259Z\n",
+      "------------------------------------  -----------------------------  ------------------------\n"
+     ]
+    }
+   ],
+   "source": [
+    "client.repository.list_experiments()"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 30,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "details = client.repository.get_experiment_details(experiment_uid)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 31,
+   "metadata": {},
+   "outputs": [
+    {
+     "ename": "ApiRequestFailure",
+     "evalue": "Failure during experiment run. (POST https://ibm-watson-ml.mybluemix.net/v3/experiments/bad8619e-9f06-4d38-868b-e8ff8d5a46d1/runs)\nStatus code: 403, body: {\n  \"trace\": \"3921242899\",\n  \"errors\": [{\n    \"code\": \"instance_quota_exceeded\",\n    \"message\": \"User quota exceeded (50 capacity unit-hours).\",\n    \"more_info\": \"http://watson-ml-api.mybluemix.net/\"\n  }]\n}",
+     "output_type": "error",
+     "traceback": [
+      "\u001b[0;31m---------------------------------------------------------------------------\u001b[0m",
+      "\u001b[0;31mApiRequestFailure\u001b[0m                         Traceback (most recent call last)",
+      "\u001b[0;32m<ipython-input-31-bdc9b53ca539>\u001b[0m in \u001b[0;36m<module>\u001b[0;34m()\u001b[0m\n\u001b[0;32m----> 1\u001b[0;31m \u001b[0mexperiment_run_details\u001b[0m \u001b[0;34m=\u001b[0m \u001b[0mclient\u001b[0m\u001b[0;34m.\u001b[0m\u001b[0mexperiments\u001b[0m\u001b[0;34m.\u001b[0m\u001b[0mrun\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0mexperiment_uid\u001b[0m\u001b[0;34m,\u001b[0m \u001b[0masynchronous\u001b[0m\u001b[0;34m=\u001b[0m\u001b[0;32mTrue\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[0m",
+      "\u001b[0;32m/opt/conda/envs/DSX-Python35/lib/python3.5/site-packages/watson_machine_learning_client/experiments.py\u001b[0m in \u001b[0;36mrun\u001b[0;34m(self, experiment_uid, asynchronous)\u001b[0m\n\u001b[1;32m    217\u001b[0m \u001b[0;34m\u001b[0m\u001b[0m\n\u001b[1;32m    218\u001b[0m         \u001b[0;31m# TODO should be 201\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[0;32m--> 219\u001b[0;31m         \u001b[0mresult_details\u001b[0m \u001b[0;34m=\u001b[0m \u001b[0mself\u001b[0m\u001b[0;34m.\u001b[0m\u001b[0m_handle_response\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0;36m200\u001b[0m\u001b[0;34m,\u001b[0m \u001b[0;34mu'experiment run'\u001b[0m\u001b[0;34m,\u001b[0m \u001b[0mresponse\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[0m\u001b[1;32m    220\u001b[0m \u001b[0;34m\u001b[0m\u001b[0m\n\u001b[1;32m    221\u001b[0m         \u001b[0mexperiment_run_uid\u001b[0m \u001b[0;34m=\u001b[0m \u001b[0mself\u001b[0m\u001b[0;34m.\u001b[0m\u001b[0mget_run_uid\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0mresult_details\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n",
+      "\u001b[0;32m/opt/conda/envs/DSX-Python35/lib/python3.5/site-packages/watson_machine_learning_client/wml_resource.py\u001b[0m in \u001b[0;36m_handle_response\u001b[0;34m(self, expected_status_code, operationName, response, json_response)\u001b[0m\n\u001b[1;32m     53\u001b[0m                 \u001b[0;32mreturn\u001b[0m \u001b[0mresponse\u001b[0m\u001b[0;34m.\u001b[0m\u001b[0mtext\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[1;32m     54\u001b[0m         \u001b[0;32melse\u001b[0m\u001b[0;34m:\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[0;32m---> 55\u001b[0;31m             \u001b[0;32mraise\u001b[0m \u001b[0mApiRequestFailure\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0;34mu'Failure during {}.'\u001b[0m\u001b[0;34m.\u001b[0m\u001b[0mformat\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0moperationName\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m,\u001b[0m \u001b[0mresponse\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[0m\u001b[1;32m     56\u001b[0m \u001b[0;34m\u001b[0m\u001b[0m\n\u001b[1;32m     57\u001b[0m     \u001b[0;34m@\u001b[0m\u001b[0mstaticmethod\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n",
+      "\u001b[0;31mApiRequestFailure\u001b[0m: Failure during experiment run. (POST https://ibm-watson-ml.mybluemix.net/v3/experiments/bad8619e-9f06-4d38-868b-e8ff8d5a46d1/runs)\nStatus code: 403, body: {\n  \"trace\": \"3921242899\",\n  \"errors\": [{\n    \"code\": \"instance_quota_exceeded\",\n    \"message\": \"User quota exceeded (50 capacity unit-hours).\",\n    \"more_info\": \"http://watson-ml-api.mybluemix.net/\"\n  }]\n}"
+     ]
+    }
+   ],
+   "source": [
+    "experiment_run_details = client.experiments.run(experiment_uid, asynchronous=True)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "client.experiments.list_runs()"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "experiment_run_uid = client.experiments.get_run_uid(experiment_run_details)\n",
+    "print(experiment_run_uid)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "client.experiments.list_training_runs(experiment_run_uid)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "experiment_run_details = client.experiments.get_run_details(experiment_run_uid)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "client.experiments.get_status(experiment_run_uid)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "experiment_details = client.experiments.get_details(experiment_uid)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "experiment_run_details = client.experiments.get_run_details(experiment_run_uid)\n",
+    "training_run_uids = client.experiments.get_training_uids(experiment_run_details)\n",
+    "\n",
+    "for i in training_run_uids:\n",
+    "    print(i)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "client.experiments.monitor_logs(experiment_run_uid)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "client.experiments.get_status(experiment_run_uid)['state']"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "metrics = client.experiments.get_latest_metrics(experiment_run_uid)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "all_metrics = client.experiments.get_metrics(experiment_run_uid)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "!pip install cufflinks\n",
+    "!pip install ipywidgets\n",
+    "!pip install plotly"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "import sys\n",
+    "import pandas\n",
+    "import plotly.plotly as py\n",
+    "from plotly.offline import download_plotlyjs, init_notebook_mode, plot, iplot\n",
+    "import cufflinks as cf\n",
+    "import plotly.graph_objs as go\n",
+    "\n",
+    "init_notebook_mode(connected=True)\n",
+    "sys.path.append(\"\".join([os.environ[\"HOME\"]])) "
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "import pandas as pd\n",
+    "\n",
+    "metrics_df = pd.DataFrame(columns=['GUID', 'NAME', 'METRIC NAME', 'METRIC VALUE'])\n",
+    "\n",
+    "for m in metrics:\n",
+    "    for v in m['metrics']['values']:\n",
+    "            metrics_df = metrics_df.append({'GUID': m['training_guid'], 'NAME': m['training_reference_name'], 'METRIC NAME': v['name'], 'METRIC VALUE': v['value']}, ignore_index=True)\n",
+    "    \n",
+    "metrics_df"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "data = []\n",
+    "\n",
+    "for i in list(pd.unique(metrics_df['METRIC NAME'])):\n",
+    "    data.append(go.Bar(x=metrics_df[metrics_df['METRIC NAME'].isin([i])]['GUID'] + ' (' + metrics_df[metrics_df['METRIC NAME'].isin([i])]['NAME'] + ')', y=metrics_df[metrics_df['METRIC NAME'].isin([i])]['METRIC VALUE'], name=i))\n",
+    "\n",
+    "\n",
+    "layout = go.Layout(\n",
+    "    barmode='group'\n",
+    ")\n",
+    "\n",
+    "fig = go.Figure(data=data, layout=layout)\n",
+    "\n",
+    "iplot(fig)\n"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {},
+   "outputs": [],
+   "source": []
+  }
+ ],
+ "metadata": {
+  "kernelspec": {
+   "display_name": "Python 3.5",
+   "language": "python",
+   "name": "python3"
+  },
+  "language_info": {
+   "codemirror_mode": {
+    "name": "ipython",
+    "version": 3
+   },
+   "file_extension": ".py",
+   "mimetype": "text/x-python",
+   "name": "python",
+   "nbconvert_exporter": "python",
+   "pygments_lexer": "ipython3",
+   "version": "3.5.5"
+  }
+ },
+ "nbformat": 4,
+ "nbformat_minor": 1
+}
